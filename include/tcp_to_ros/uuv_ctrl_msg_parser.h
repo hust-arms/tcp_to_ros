@@ -87,8 +87,6 @@ private:
     {
         if(msg.length() >= msg_.total_len_)
         {
-            std::cout << "check length" << std::endl;
-
             byte_buffer buffer(msg.length());
             
             for(size_t i = 0; i < msg.length(); ++i)

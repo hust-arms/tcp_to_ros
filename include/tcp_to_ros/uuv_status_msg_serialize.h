@@ -8,6 +8,7 @@
  */
 
 #include <cstddef>
+#include <iostream>
 
 #include "byte_buffer.h"
 #include "crc_check.h"
@@ -126,13 +127,20 @@ public:
     ~uuv_status_msg_serialize() 
     {}
 
+    std::string serialize_test(const double& height, const double& depth, const double& x, const double& y, const double& z, 
+                          const double& roll, const double& pitch, const double& yaw, const double& u, const double& v, const double& w, 
+                          const double& up, const double& us, const double& ls, const double& lp, const int& thruster)
+    {
+        return serialize(height, depth, x, y, z, roll, pitch, yaw, u, v, w, up, us, ls, lp, thruster);
+    }
+
 private:
     /**
      * @brief UUV status message serialization
      */
     std::string serialize(const double& height, const double& depth, const double& x, const double& y, const double& z, 
                           const double& roll, const double& pitch, const double& yaw, const double& u, const double& v, const double& w, 
-                          const double& up, const double& us, const double& ls, const double& lp, const double& thruster)
+                          const double& up, const double& us, const double& ls, const double& lp, const int& thruster)
     {
         if(msg_.cnt_ > 65535)
             msg_.cnt_ = 0;
