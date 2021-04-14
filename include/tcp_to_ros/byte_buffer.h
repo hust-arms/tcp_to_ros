@@ -32,16 +32,24 @@ public:
         pos_ = 0; len_ = len;
 
         // request memeory
-        // buffer_ = new uint8_t[len_];
-        buffer_ = boost::make_shared<uint8_t>(new uint8_t(len_));
+        buffer_ = new uint8_t[len_];
+        // buffer_ = boost::make_shared<uint8_t>(new uint8_t(len_));
 
+        // memset(buffer_.get(), 0, len_);
         memset(buffer_, 0, len_);
+    }
+
+    ~byte_buffer()
+    {
+        delete []buffer_;
+        buffer_ = nullptr;
     }
 
     /**
      * @brief return buffer 
      */
-    inline uint8_t_ptr getMsg()const {return buffer_;}
+    // inline uint8_t_ptr getMsg()const {return buffer_;}
+    inline uint8_t* getMsg()const {return buffer_;}
 
     /**
      * @brief get byte 
@@ -86,7 +94,8 @@ public:
      */
     uint16_t uint8_to_uint16(int data_pos)
     {
-        return static_cast<uint16_t>((buffer_[data_pos] | (buffer_[data_pos + 1] << 8)) & 0xFF);
+        // return static_cast<uint16_t>(buffer_[data_pos] | (buffer_[data_pos + 1] << 8));
+        return static_cast<uint16_t>(buffer_[data_pos] << 8 | (buffer_[data_pos + 1]));
     }
 
     /**
@@ -94,13 +103,16 @@ public:
      */
     uint32_t uint8_to_uint32(int data_pos)
     {
-        return static_cast<uint32_t>((buffer_[data_pos] | (buffer_[data_pos + 1] << 8) | 
-                                                         (buffer_[data_pos + 2] << 16) |
-                                                         (buffer_[data_pos + 3] << 24)) & 0xFF);
+        // return static_cast<uint32_t>(buffer_[data_pos] | (buffer_[data_pos + 1] << 8) | 
+        //                                                  (buffer_[data_pos + 2] << 16) |
+        //                                                  (buffer_[data_pos + 3] << 24));
+        return static_cast<uint32_t>(buffer_[data_pos] << 24 | (buffer_[data_pos + 1] << 16) | 
+                                     (buffer_[data_pos + 2] << 8) | buffer_[data_pos + 3]);
     }
 
 private:
-    uint8_t_ptr buffer_;
+    // uint8_t_ptr buffer_;
+    uint8_t* buffer_;
     size_t pos_;
     size_t len_;
 };
