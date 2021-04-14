@@ -205,7 +205,7 @@ private:
         buffer.append_uint16(msg_.set5_); // 87
 
         // crc check
-        msg_.crc_ = crc_calc(buffer.getMsg()[4], msg_.len_); 
+        msg_.crc_ = crc_calc(&buffer.getMsg()[5], msg_.len_); 
 
         buffer.append_uint8(msg_.crc_); // 89
         buffer.append_uint16(msg_.tail_); // 90

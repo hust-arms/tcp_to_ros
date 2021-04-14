@@ -19,7 +19,7 @@ struct uuv_ctrl_msg
 {
     uint16_t head_ = 0xEBA2;
     uint16_t cnt_; // 0-65535
-    uint8_t len_;
+    uint8_t len_ = 0;
     
     uint8_t nav_mode_;
     uint8_t status_fb_;
@@ -74,6 +74,11 @@ public:
         thruster = msg_.thruster_;
     }
 
+    void deliver_test(const std::string& msg)
+    {
+        parse(msg);
+    }
+
 private:
     /**
      * @brief parse control parameters from message
@@ -82,6 +87,8 @@ private:
     {
         if(msg.length() >= msg_.total_len_)
         {
+            std::cout << "check length" << std::endl;
+
             byte_buffer buffer(msg.length());
             
             for(size_t i = 0; i < msg.length(); ++i)
@@ -89,7 +96,8 @@ private:
                 buffer.append_uint8(static_cast<uint8_t>(msg[i]));
             }
             
-            uint8_t_ptr data = buffer.getMsg();
+            // uint8_t_ptr data = buffer.getMsg();
+            uint8_t* data = buffer.getMsg();
             
             size_t head_pos = 0;
             
@@ -104,48 +112,66 @@ private:
 
             if(msg.length() - head_pos >= msg_.total_len_)
             {
+                std::cout << "parse uuv control message" << std::endl;
                 // crc check
 
                 // parse
                 head_pos += 2;
                 
                 msg_.cnt_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "cnt: " << static_cast<int>(msg_.cnt_) << std::endl;
                 head_pos += 2;
                 
                 msg_.len_ = buffer.getByte(head_pos);
+                std::cout << "len: " << static_cast<int>(msg_.len_) << std::endl;
                 ++head_pos;
                 
                 msg_.nav_mode_ = buffer.getByte(head_pos);
+                std::cout << "nav mode: " << static_cast<int>(msg_.nav_mode_) << std::endl;
                 ++head_pos;
                 
                 msg_.status_fb_ = buffer.getByte(head_pos);
+                std::cout << "status fb: " << static_cast<int>(msg_.status_fb_) << std::endl;
                 ++head_pos;
                 
                 msg_.u_cmd_ = buffer.getByte(head_pos);
+                std::cout << "u cmd: " << static_cast<int>(msg_.u_cmd_) << std::endl;
                 ++head_pos;
                 
                 msg_.yaw_cmd_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "yaw cmd: " << static_cast<int>(msg_.yaw_cmd_) << std::endl;
                 head_pos += 2;
                 
                 msg_.depth_cmd_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "depth cmd: " << static_cast<int>(msg_.depth_cmd_) << std::endl;
                 head_pos += 2;
                 
                 msg_.upper_port_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "up: " << static_cast<int>(msg_.upper_port_) << std::endl;
                 head_pos += 2;
                 
                 msg_.upper_starboard_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "us: " << static_cast<int>(msg_.upper_starboard_) << std::endl;
                 head_pos += 2;
                 
                 msg_.lower_starboard_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "ls: " << static_cast<int>(msg_.lower_starboard_) << std::endl;
                 head_pos += 2;
                 
                 msg_.lower_port_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "lp: " << static_cast<int>(msg_.lower_port_) << std::endl;
                 head_pos += 2;
                 
                 msg_.light_ = buffer.getByte(head_pos);
+                std::cout << "light: " << static_cast<int>(msg_.light_) << std::endl;
                 ++head_pos;
                 
-                msg_.lift_ = buffer.uint8_to_uint16(head_pos);
+                msg_.lift_ = buffer.getByte(head_pos);
+                std::cout << "lift: " << static_cast<int>(msg_.lift_) << std::endl;
+                ++head_pos;
+
+                msg_.thruster_ = buffer.uint8_to_uint16(head_pos);
+                std::cout << "thruster: " << static_cast<int>(msg_.thruster_) << std::endl;
                 head_pos += 2;
             }
             else
