@@ -24,6 +24,9 @@ typedef boost::shared_ptr<uint8_t> uint8_t_ptr;
 class byte_buffer
 {
 public:
+    /**
+     * @brief constructor
+     */
     byte_buffer(size_t len)
     {
         pos_ = 0; len_ = len;
@@ -35,22 +38,41 @@ public:
         memset(buffer_, 0, len_);
     }
 
+    /**
+     * @brief return buffer 
+     */
     inline uint8_t_ptr getMsg()const {return buffer_;}
 
+    /**
+     * @brief get byte 
+     */
     inline uint8_t getByte(size_t bit)const { return buffer_[bit]; }
 
+    /**
+     * @brief get length of buffer
+     */
     inline size_t getLen()const {return len_;}
 
+    /**
+     * @brief append data of uint8
+     */
     void append_uint8(uint8_t value)
     {
         buffer_[pos_++] = value;
     }
+
+    /**
+     * @brief append data of uint16
+     */
     void append_uint16(uint16_t value)
     {
         buffer_[pos_++] = (uint8_t)(value >> 8);
         buffer_[pos_++] = (uint8_t)(value & 0xFF);
     }
 
+    /**
+     * @brief append data of uint32
+     */
     void append_uint32(uint32_t value)
     {
         buffer_[pos_++] = (uint8_t)(value >> 24);
@@ -59,11 +81,17 @@ public:
         buffer_[pos_++] = (uint8_t)(value & 0xFF);
     }
 
+    /**
+     * @brief turn uint8 to uint16
+     */
     uint16_t uint8_to_uint16(int data_pos)
     {
         return static_cast<uint16_t>((buffer_[data_pos] | (buffer_[data_pos + 1] << 8)) & 0xFF);
     }
 
+    /**
+     * @brief turn uint8 to uint32
+     */
     uint32_t uint8_to_uint32(int data_pos)
     {
         return static_cast<uint32_t>((buffer_[data_pos] | (buffer_[data_pos + 1] << 8) | 
