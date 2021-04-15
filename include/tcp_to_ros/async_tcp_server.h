@@ -13,9 +13,11 @@
 #include <deque>
 #include <iostream>
 #include <set>
+
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/asio.hpp>
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -68,26 +70,19 @@ private:
 
 class async_tcp_server; // pre decalration
 
+const int BUFFER_MAX_LEN = 1024;
+
 class tcp_session
   : public subscriber,
     public boost::enable_shared_from_this<tcp_session>
 {
     friend async_tcp_server;
+
 public:
   tcp_session(boost::asio::io_service& io_service, channel& ch)
     : channel_(ch),
-      socket_(io_service),
-      input_deadline_(io_service),
-      non_empty_output_queue_(io_service),
-      output_deadline_(io_service)
+      socket_(io_service)
   {
-    input_deadline_.expires_at(boost::posix_time::pos_infin);
-    output_deadline_.expires_at(boost::posix_time::pos_infin);
-
-    // The non_empty_output_queue_ deadline_timer is set to pos_infin whenever
-    // the output queue is empty. This ensures that the output actor stays
-    // asleep until a message is put into the queue.
-    non_empty_output_queue_.expires_at(boost::posix_time::pos_infin);
   }
 
   tcp::socket& socket()
@@ -96,21 +91,28 @@ public:
   }
 
   // Called by the server object to initiate the four actors.
+  // void start()
+  // {
+  //   channel_.join(shared_from_this());
+  // 
+  //   start_read();
+  // 
+  //   input_deadline_.async_wait(
+  //       boost::bind(&tcp_session::check_deadline,
+  //       shared_from_this(), &input_deadline_));
+  // 
+  //   await_output();
+  // 
+  //   output_deadline_.async_wait(
+  //       boost::bind(&tcp_session::check_deadline,
+  //       shared_from_this(), &output_deadline_));
+  // }
+
   void start()
   {
     channel_.join(shared_from_this());
 
     start_read();
-
-    input_deadline_.async_wait(
-        boost::bind(&tcp_session::check_deadline,
-        shared_from_this(), &input_deadline_));
-
-    await_output();
-
-    output_deadline_.async_wait(
-        boost::bind(&tcp_session::check_deadline,
-        shared_from_this(), &output_deadline_));
   }
 
 private:
@@ -119,9 +121,7 @@ private:
     channel_.leave(shared_from_this());
 
     socket_.close();
-    input_deadline_.cancel();
-    non_empty_output_queue_.cancel();
-    output_deadline_.cancel();
+    std::cout << "[async_tcp_server]: close server" << std::endl;
   }
 
   bool stopped() const
@@ -131,24 +131,25 @@ private:
 
   void deliver(const std::string& msg)
   {
-    output_queue_.push_back(msg);
 
-    // Signal that the output queue contains messages. Modifying the expiry
-    // will wake the output actor, if it is waiting on the timer.
-    non_empty_output_queue_.expires_at(boost::posix_time::neg_infin);
+  }
+
+  void addSentMsg(const std::string& msg)
+  {
+    output_queue_.push_back(msg);
+    std::cout << "[async_tcp_server]: outside deliver: " << msg << 
+                 "output queue size: " << output_queue_.size() << std::endl;
   }
 
   void start_read()
   {
-    // Set a deadline for the read operation.
-    input_deadline_.expires_from_now(boost::posix_time::seconds(30));
-
-    // Start an asynchronous operation to read a newline-delimited message.
-    boost::asio::async_read_until(socket_, input_buffer_, '\n',
-        boost::bind(&tcp_session::handle_read, shared_from_this(), _1));
+      socket_.async_read_some(boost::asio::buffer(buffer_, BUFFER_MAX_LEN),
+          boost::bind(&tcp_session::handle_read, this,
+            boost::asio::placeholders::error,
+            boost::asio::placeholders::bytes_transferred));
   }
 
-  void handle_read(const boost::system::error_code& ec)
+  void handle_read(const boost::system::error_code& ec, size_t bytes_transferred)
   {
     if (stopped())
       return;
@@ -156,29 +157,22 @@ private:
     if (!ec)
     {
       // Extract the newline-delimited message from the buffer.
-      std::string msg;
-      std::istream is(&input_buffer_);
-      std::getline(is, msg);
-
-      if (!msg.empty())
+      std::string msg(bytes_transferred, 0);
+      for(size_t i = 0; i < bytes_transferred; ++i)
       {
-        channel_.deliver(msg);
+          msg[i] = static_cast<char>(buffer_[i]);
       }
-      else
-      {
-        // We received a heartbeat message from the client. If there's nothing
-        // else being sent or ready to be sent, send a heartbeat right back.
-        if (output_queue_.empty())
-        {
-          output_queue_.push_back("\n");
+      channel_.deliver(msg);
+      std::cout << "[async_tcp_server]: read: " << msg << std::endl;
 
-          // Signal that the output queue contains messages. Modifying the
-          // expiry will wake the output actor, if it is waiting on the timer.
-          non_empty_output_queue_.expires_at(boost::posix_time::neg_infin);
-        }
+      // We received a heartbeat message from the client. If there's nothing
+      // else being sent or ready to be sent, send a heartbeat right back.
+      if (output_queue_.empty())
+      {
+        output_queue_.push_back("\n");
       }
 
-      start_read();
+      start_write();
     }
     else
     {
@@ -186,31 +180,8 @@ private:
     }
   }
 
-  void await_output()
-  {
-    if (stopped())
-      return;
-
-    if (output_queue_.empty())
-    {
-      // There are no messages that are ready to be sent. The actor goes to
-      // sleep by waiting on the non_empty_output_queue_ timer. When a new
-      // message is added, the timer will be modified and the actor will wake.
-      non_empty_output_queue_.expires_at(boost::posix_time::pos_infin);
-      non_empty_output_queue_.async_wait(
-          boost::bind(&tcp_session::await_output, shared_from_this()));
-    }
-    else
-    {
-      start_write();
-    }
-  }
-
   void start_write()
   {
-    // Set a deadline for the write operation.
-    output_deadline_.expires_from_now(boost::posix_time::seconds(30));
-
     // Start an asynchronous operation to send a message.
     boost::asio::async_write(socket_,
         boost::asio::buffer(output_queue_.front()),
@@ -224,46 +195,21 @@ private:
 
     if (!ec)
     {
+      std::cout << "[async_tcp_server]: write: " << output_queue_.front() << std::endl;
       output_queue_.pop_front();
-
-      await_output();
+      start_read();
     }
     else
     {
       stop();
-    }
-  }
-
-  void check_deadline(deadline_timer* deadline)
-  {
-    if (stopped())
-      return;
-
-    // Check whether the deadline has passed. We compare the deadline against
-    // the current time since a new asynchronous operation may have moved the
-    // deadline before this actor had a chance to run.
-    if (deadline->expires_at() <= deadline_timer::traits_type::now())
-    {
-      // The deadline has passed. Stop the session. The other actors will
-      // terminate as soon as possible.
-      stop();
-    }
-    else
-    {
-      // Put the actor back to sleep.
-      deadline->async_wait(
-          boost::bind(&tcp_session::check_deadline,
-          shared_from_this(), deadline));
     }
   }
 
   channel& channel_;
   tcp::socket socket_;
-  boost::asio::streambuf input_buffer_;
-  deadline_timer input_deadline_;
+  
   std::deque<std::string> output_queue_;
-  deadline_timer non_empty_output_queue_;
-  deadline_timer output_deadline_;
+  uint8_t buffer_[BUFFER_MAX_LEN];
 };
 
 typedef boost::shared_ptr<tcp_session> tcp_session_ptr;
@@ -302,19 +248,30 @@ public:
     : io_service_(io_service),
       acceptor_(io_service, listen_endpoint)
   {
-    w_msg_ = "";
-
+    std::cout << "[async_tcp_server]: Server initialize" << std::endl;
     channel_.join(bc);
 
-    tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
-
-    acceptor_.async_accept(new_session->socket(),
-        boost::bind(&async_tcp_server::handle_accept, this, new_session, _1));
+    start_accept();
   }
 
-  void setSentMsg(const std::string& msg)
+  void addSentMsg(const std::string& msg)
   {
-    w_msg_ = msg;
+    std::cout << "[async_tcp_server]: add message: " << msg << std::endl;
+    // session_->deliver(msg);
+    session_->addSentMsg(msg);
+  }
+
+  void start_accept()
+  {
+    std::cout << "[async_tcp_server]: listen" << std::endl;
+    // tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
+    session_ = boost::shared_ptr<tcp_session>(new tcp_session(io_service_, channel_));
+
+    // new_session->deliver(w_msg_);
+
+    acceptor_.async_accept(session_->socket(),
+        boost::bind(&async_tcp_server::handle_accept, this, session_, 
+                    boost::asio::placeholders::error));
   }
 
   void handle_accept(tcp_session_ptr session,
@@ -324,11 +281,19 @@ public:
     {
       session->start();
 
-      tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
-      new_session->deliver(w_msg_);
+      start_accept();
 
-      acceptor_.async_accept(new_session->socket(),
-          boost::bind(&async_tcp_server::handle_accept, this, new_session, _1));
+      // tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
+      // new_session->deliver(w_msg_);
+
+      
+      // acceptor_.async_accept(new_session->socket(),
+      //     boost::bind(&async_tcp_server::handle_accept, this, new_session, _1));
+    }
+    else
+    {
+        std::cerr << "[async_tcp_server]: error in handle acceptance" << std::endl;
+        session->stop();
     }
   }
 
@@ -336,8 +301,10 @@ private:
   boost::asio::io_service& io_service_;
   tcp::acceptor acceptor_;
   channel channel_;
+  
+  tcp_session_ptr session_;
 
-  std::string w_msg_;
+  // std::string w_msg_;
 };
 
 //----------------------------------------------------------------------
