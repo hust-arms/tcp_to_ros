@@ -54,20 +54,30 @@ include_directories(
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/tcp_to_ros.cpp
+# add_library(uuv_ctrl_msg_parser_test
+#   src/uuv_ctrl_msg_parser_test.cpp
 # )
 
-
-# add_executable(async_tcp_server_test src/async_tcp_server_test.cpp)
+add_executable(async_tcp_server_test src/async_tcp_server_test.cpp)
+add_executable(uuv_ctrl_msg_parser_test src/uuv_ctrl_msg_parser_test.cpp)
+add_executable(uuv_status_msg_serialize_test src/uuv_status_msg_serialize.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(async_tcp_server_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(async_tcp_server_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(uuv_ctrl_msg_parser_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(uuv_status_msg_serialize_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-# target_link_libraries(async_tcp_server_test
-#   ${catkin_LIBRARIES}
-# )
+
+target_link_libraries(async_tcp_server_test
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(uuv_ctrl_msg_parser_test
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(uuv_status_msg_serialize_test
+  ${catkin_LIBRARIES}
+)
 
 #############
 ## Install ##
