@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(tcp_to_ros)
+project(tcp_ros_bridge)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -57,6 +57,13 @@ include_directories(
 # add_library(uuv_ctrl_msg_parser_test
 #   src/uuv_ctrl_msg_parser_test.cpp
 # )
+add_library(message719
+  src/message719.c
+)
+
+add_library(tcp_ros_bridge
+  src/tcp_ros_bridge.cpp
+)
 
 add_executable(async_tcp_server_test src/async_tcp_server_test.cpp)
 add_executable(uuv_ctrl_msg_parser_test src/uuv_ctrl_msg_parser_test.cpp)
