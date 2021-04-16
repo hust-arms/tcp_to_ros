@@ -1,14 +1,14 @@
 /*                                                                                     
  * Filename: uuv_ctrl_msg_parser_test.cpp
- * Path: tcp_to_ros
+ * Path: tcp_ros_bridge
  * Created Date: Saturday, Faburary 27th 2021, 15:14:39         
  * Author: zhao wang
  * 
  * Copyright (c) 2021 hust-arms
  */
 
-#include "tcp_to_ros/crc_check.h"
-#include "tcp_to_ros/uuv_ctrl_msg_parser.h"
+#include "tcp_ros_bridge/crc_check.h"
+#include "tcp_ros_bridge/uuv_ctrl_msg_parser.h"
 
 #include <iostream>
 
