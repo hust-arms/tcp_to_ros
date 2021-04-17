@@ -47,6 +47,14 @@ private:
      */
     void uuv_status_send_thread();
 
+    /**
+     * @param get control information from subscriber
+     */
+    void getCtrlInfo()
+    {
+        ctrl_info_ = tcp_msg_sub_->getCtrlInfo();
+    }
+
     /* Sensors callback func */
     /**
      * @brief IMU data input
@@ -102,12 +110,26 @@ private:
             rpm_ = 0.0;
         }
 
-        double fin0_;
-        double fin1_;
-        double fin2_;
-        double fin3_;
+        uuv_ctrl_info& operator=(const uuv_ctrl_info& ctrl_info)
+        {
+            if(this != &ctrl_info)
+            {
+                this->fin0_ = ctrl_info.fin0_;
+                this->fin1_ = ctrl_info.fin1_;
+                this->fin2_ = ctrl_info.fin2_;
+                this->fin3_ = ctrl_info.fin3_;
+                this->rpm_ = ctrl_info.rpm_;
 
-        double rpm_;
+                return *this;
+            }
+        }
+
+        float fin0_;
+        float fin1_;
+        float fin2_;
+        float fin3_;
+
+        float rpm_;
     }; // uuv_ctrl_info
 
     struct uuv_status_info
@@ -115,7 +137,7 @@ private:
         double x_, y_, z_, u_, v_, w_;
         double depth_;
         double roll_, pitch_, yaw_, droll_, dpitch_, dyaw_;
-        double fin1_, fin2_, fin3_, fin0_;
+        double fin0_, fin1_, fin2_, fin3_; // up, us, lp, ls
         double rpm_;
     }; // uuv_status_info
 
@@ -126,26 +148,55 @@ private:
     {
     public:
         /**
+         * @brief Return control information
+         */
+        uuv_ctrl_info getCtrlInfo()const
+        {
+            return ctrl_info_;
+        }
+
+        /**
          * @brief Parse UUV control message
          */
         void deliver(const std::string& msg) override
         {
-            uint8_t buffer[msg.size()];
+            uint8_t recv_buffer[msg.size()];
 
             for(int i = 0; i < msg.size(); ++i)
             {
-                buffer[i] = static_cast<uint8_t>(msg[i]);
+                recv_buffer[i] = static_cast<uint8_t>(msg[i]);
             }
 
             // parse
+            for(int i = 0; i < msg.size(); ++i)
+            {
+                if(MESSAGE_FRAMING_OK == message_parse(recv_buffer[0]))
+                {
+                    uint8_t mode, status_fd, vel, light, elevator;
+                    float course, depth;
+
+                    float fin0, fin1, fin2, fin3;
+
+                    // get control parameters from command
+                    message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
+                                            &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_, &light, &elevator);
+
+                    ctrl_info_.rpm_ = static_cast<int>(mode) * 2300.0;
+                }
+            }
         }
+
+    private:
+        uuv_ctrl_info ctrl_info_;
     }; // uuv_ctrl_subscriber 
+
+    typedef boost::shared_ptr<uuv_ctrl_subscriber> uuv_ctrl_sub_ptr;
 
     std::string auv_name_;
     int seq_;
     double period_;
 
-    subscriber_ptr tcp_msg_sub_;
+    uuv_ctrl_sub_ptr tcp_msg_sub_;
     server_ptr server_;
 
     boost::thread* parse_th_;

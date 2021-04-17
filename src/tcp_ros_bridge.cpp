@@ -40,7 +40,7 @@ uuv_tcp_ros_bridge::uuv_tcp_ros_bridge(const std::string& auv_name,
     
     try
     {
-        tcp_msg_sub_ = boost::shared_ptr<subscriber>(new uuv_ctrl_subscriber());
+        tcp_msg_sub_ = boost::shared_ptr<uuv_ctrl_subscriber>(new uuv_ctrl_subscriber());
         tcp::endpoint listen_endpoint(tcp::v4(), port);
 
         server_ = boost::shared_ptr<async_tcp_server>(new async_tcp_server(io_service, listen_endpoint, tcp_msg_sub_));
@@ -76,7 +76,10 @@ void uuv_tcp_ros_bridge::uuv_ctrl_publish_thread()
         double fins0, fins1, fins2, fins3, rpm;
 
         {
-            boost::unique_lock<boost::recursive_mutex> lock(uuv_ctrl_info_mutex_);
+            {
+                boost::unique_lock<boost::recursive_mutex> lock(uuv_ctrl_info_mutex_);
+                getCtrlInfo();
+            }
             
             fins0 = ctrl_info_.fin0_;
             fins1 = ctrl_info_.fin1_;
@@ -125,9 +128,10 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
 
     while(nh.ok())
     {
-        double x, y, z, u, v, w;
-        double roll, pitch, yaw, droll, dpitch, dyaw;
-        double fin0, fin1, fin2, fin3, rpm;
+        float x, y, z, u, v, w;
+        float roll, pitch, yaw, droll, dpitch, dyaw;
+        float fin0, fin1, fin2, fin3, rpm;
+        float ins_yaw;
 
         {
             boost::unique_lock<boost::recursive_mutex> lock(uuv_status_info_mutex_);
@@ -137,12 +141,12 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
             u = status_info_.u_;
             v = status_info_.v_;
             w = status_info_.w_;
-            roll = status_info_.roll_;
-            pitch = status_info_.pitch_;
-            yaw = status_info_.yaw_;
-            droll = status_info_.droll_;
-            dpitch = status_info_.dpitch_;
-            dyaw = status_info_.dyaw_;
+            roll = 57.3 * status_info_.roll_;
+            pitch = 57.3 * status_info_.pitch_;
+            yaw = 57.3 * status_info_.yaw_;
+            droll = 57.3 * status_info_.droll_;
+            dpitch = 57.3 * status_info_.dpitch_;
+            dyaw = 57.3 * status_info_.dyaw_;
             fin0 = status_info_.fin0_;
             fin1 = status_info_.fin1_;
             fin2 = status_info_.fin2_;
@@ -150,9 +154,36 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
             rpm = status_info_.rpm_;
         }
 
-        // serialize status params and send
+        ins_yaw = -yaw;
+
+        // [-pi, pi] -> [0, 2*pi]
+        if(ins_yaw < 0.0)
+            ins_yaw += 2 * 180.0;
+
+        // serialize 
+        uint8_t mode = 0xFF; uint8_t light = 0xFF; uint8_t elevator = 0xFF; // default
+        uint8_t cmd = 0xFF;
+
+        double lng = 114.31; double lat = 30.52;
+
+        message_status_pack(mode, 20.0, -5.0, -10.0, 0.0, 0.0, 0.0, 
+                            x, y, z, roll, pitch, yaw, 
+                            500.0 - abs(z), abs(z), 
+                            ins_yaw, -pitch, roll, -v, u, -w,
+                            lng, lat, 0.0, 0.0, 0.0, 
+                            fin0, fin1, fin2, fin3, cmd, 
+                            light, elevator);
+
+        uint8_t send_buffer[512];
+        message_msg_to_send_buffer(send_buffer, 0);
+
+        std::string send_msg(512, 0);
+        for(int i = 0; i < send_msg.length(); ++i)
+        {
+            send_msg[i] = static_cast<char>(send_buffer[i]);
+        }
         
-        server_->addSentMsg("");
+        server_->addSentMsg(send_msg);
 
         boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 1000));
     }
