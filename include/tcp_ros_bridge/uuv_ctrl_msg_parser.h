@@ -74,6 +74,8 @@ public:
         thruster = msg_.thruster_;
     }
 
+    void deliver(uint8_t* msg, size_t bytes) override{};
+
     void deliver_test(const std::string& msg)
     {
         parse(msg);

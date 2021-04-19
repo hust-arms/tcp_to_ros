@@ -10,7 +10,7 @@
 #pragma once
 
 #include "async_tcp_server.h"
-#include "message719.h"
+#include "message.h"
 
 #include <memory>
 #include <boost/thread/thread.hpp>
@@ -23,6 +23,8 @@
 #include <nav_msgs/Odometry.h>
 #include <uuv_sensor_ros_plugins_msgs/DVL.h>
 #include <uuv_gazebo_ros_plugins_msgs/FloatStamped.h>
+
+#define DEBUG_
 
 namespace tcp_ros_bridge{
 
@@ -139,6 +141,15 @@ private:
         double roll_, pitch_, yaw_, droll_, dpitch_, dyaw_;
         double fin0_, fin1_, fin2_, fin3_; // up, us, lp, ls
         double rpm_;
+
+        uuv_status_info()
+        {
+            x_ = 0.0; y_ = 0.0; z_ = 0.0; u_ = 0.0; v_ = 0.0; w_ = 0.0;
+            depth_ = 0.0;
+            roll_ = 0.0; pitch_ = 0.0; yaw_ = 0.0; droll_ = 0.0; dpitch_ = 0.0; dyaw_ = 0.0;
+            fin0_ = 0.0; fin1_ = 0.0; fin2_ = 0.0; fin3_ = 0.0;
+            rpm_ = 0.0;
+        }
     }; // uuv_status_info
 
     /**
@@ -158,31 +169,32 @@ private:
         /**
          * @brief Parse UUV control message
          */
-        void deliver(const std::string& msg) override
+        void deliver(uint8_t* msg, size_t bytes) override
         {
-            uint8_t recv_buffer[msg.size()];
-
-            for(int i = 0; i < msg.size(); ++i)
-            {
-                recv_buffer[i] = static_cast<uint8_t>(msg[i]);
-            }
-
+#ifdef DEBUG_
+            std::cout << "[tcp_ros_bridge]: head of messsage: " << std::hex << *msg << std::endl;
+#endif
             // parse
-            for(int i = 0; i < msg.size(); ++i)
+            if(MESSAGE_FRAMING_OK == message_parse(*msg))
             {
-                if(MESSAGE_FRAMING_OK == message_parse(recv_buffer[0]))
-                {
-                    uint8_t mode, status_fd, vel, light, elevator;
-                    float course, depth;
+                uint8_t mode, status_fd, vel, light, elevator;
+                float course, depth;
 
-                    float fin0, fin1, fin2, fin3;
+                // get control parameters from command
+                message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
+                                        &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_, &light, &elevator);
 
-                    // get control parameters from command
-                    message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
-                                            &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_, &light, &elevator);
+#ifdef DEBUG_
+               std::cout << "[tcp_ros_bridge]: recv fin: " << ctrl_info_.fin0_ << " "
+                   << ctrl_info_.fin1_ << " "
+                   << ctrl_info_.fin2_ << " "
+                   << ctrl_info_.fin3_ << " " << std::endl;;
+#endif
 
-                    ctrl_info_.rpm_ = static_cast<int>(mode) * 2300.0;
-                }
+               ctrl_info_.rpm_ = static_cast<int>(mode) * 0.01 * 2300.0;
+           }
+            else{
+               std::cout << "[tcp_ros_bridge]: parse message failed!" << std::endl;
             }
         }
 
