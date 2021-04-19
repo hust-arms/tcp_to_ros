@@ -36,7 +36,7 @@ class subscriber
 {
 public:
   virtual ~subscriber() {}
-  virtual void deliver(const std::string& msg) = 0;
+  virtual void deliver(uint8_t* msg, size_t bytes) = 0;
 };
 
 typedef boost::shared_ptr<subscriber> subscriber_ptr;
@@ -56,10 +56,10 @@ public:
     subscribers_.erase(subscriber);
   }
 
-  void deliver(const std::string& msg)
+  void deliver(uint8_t* msg, size_t bytes)
   {
     std::for_each(subscribers_.begin(), subscribers_.end(),
-        boost::bind(&subscriber::deliver, _1, boost::ref(msg)));
+        boost::bind(&subscriber::deliver, _1, boost::ref(msg), bytes));
   }
 
 private:
@@ -129,7 +129,7 @@ private:
     return !socket_.is_open();
   }
 
-  void deliver(const std::string& msg)
+  void deliver(uint8_t* msg, size_t bytes)
   {
 
   }
@@ -157,13 +157,13 @@ private:
     if (!ec)
     {
       // Extract the newline-delimited message from the buffer.
-      std::string msg(bytes_transferred, 0);
-      for(size_t i = 0; i < bytes_transferred; ++i)
-      {
-          msg[i] = static_cast<char>(buffer_[i]);
-      }
-      channel_.deliver(msg);
-      std::cout << "[async_tcp_server]: read: " << msg << std::endl;
+      // std::string msg(bytes_transferred, 0);
+      // for(size_t i = 0; i < bytes_transferred; ++i)
+      // {
+      //     msg[i] = static_cast<char>(buffer_[i]);
+      // }
+      // channel_.deliver(msg);
+      channel_.deliver(buffer_, bytes_transferred);
 
       // We received a heartbeat message from the client. If there's nothing
       // else being sent or ready to be sent, send a heartbeat right back.
@@ -228,10 +228,10 @@ public:
   }
 
 private:
-  void deliver(const std::string& msg)
+  void deliver(uint8_t* msg, size_t bytes)
   {
-    boost::system::error_code ignored_ec;
-    socket_.send(boost::asio::buffer(msg), 0, ignored_ec);
+    // boost::system::error_code ignored_ec;
+    // socket_.send(boost::asio::buffer(msg), 0, ignored_ec);
   }
 
   udp::socket socket_;

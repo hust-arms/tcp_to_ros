@@ -20,9 +20,14 @@ public:
     /**
      * @brief test deliver interface 
      */
-    void deliver(const std::string& msg) override
+    void deliver(uint8_t* msg, size_t bytes) override
     {
-        std::cout << "[test_subscriber]: recv: " << msg << std::endl;
+        // std::cout << "[test_subscriber]: recv: " << msg << std::endl;
+        for(size_t i = 0; i < bytes; ++i)
+        {
+            std::cout << *msg++ << " ";
+        }
+        std::cout << std::endl;
     }
 
 };
