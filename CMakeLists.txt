@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(tcp_ros_bridge)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
+# add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -54,20 +54,15 @@ include_directories(
 )
 
 ## Declare a C++ library
-# add_library(uuv_ctrl_msg_parser_test
-#   src/uuv_ctrl_msg_parser_test.cpp
-# )
-add_library(message719
-  src/message719.c
-)
-
 add_library(tcp_ros_bridge
   src/tcp_ros_bridge.cpp
 )
 
-add_executable(async_tcp_server_test src/async_tcp_server_test.cpp)
-add_executable(uuv_ctrl_msg_parser_test src/uuv_ctrl_msg_parser_test.cpp)
-add_executable(uuv_status_msg_serialize_test src/uuv_status_msg_serialize.cpp)
+add_executable(async_tcp_server_test test/async_tcp_server_test.cpp)
+add_executable(uuv_ctrl_msg_parser_test test/uuv_ctrl_msg_parser_test.cpp)
+add_executable(uuv_status_msg_serialize_test test/uuv_status_msg_serialize_test.cpp)
+
+add_executable(tcp_ros_bridge_test test/tcp_ros_bridge_test.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -75,6 +70,7 @@ add_dependencies(async_tcp_server_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${cat
 add_dependencies(uuv_ctrl_msg_parser_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(uuv_status_msg_serialize_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+add_dependencies(tcp_ros_bridge_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(async_tcp_server_test
   ${catkin_LIBRARIES}
@@ -83,6 +79,11 @@ target_link_libraries(uuv_ctrl_msg_parser_test
   ${catkin_LIBRARIES}
 )
 target_link_libraries(uuv_status_msg_serialize_test
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(tcp_ros_bridge_test
+  tcp_ros_bridge
   ${catkin_LIBRARIES}
 )
 
