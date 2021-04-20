@@ -48,13 +48,7 @@ int main(int argc, char* argv[])
         std::cout << "[async_tcp_server_test_node]: create TCP server" << std::endl;
         async_tcp_server server(io_service, listen_endpoint, msg_sub);
 
-        server.addSentMsg("async server test0");
-        server.addSentMsg("async server test1");
-        server.addSentMsg("async server test2");
-        server.addSentMsg("async server test3");
-        server.addSentMsg("async server test4");
-        server.addSentMsg("async server test5");
-        server.addSentMsg("async server test6");
+        // server.addSentMsg("async server test0");
 
         std::cout << "[async_tcp_server_test_node]: run TCP server" << std::endl;
         io_service.run();
