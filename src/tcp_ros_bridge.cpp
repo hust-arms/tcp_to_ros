@@ -15,7 +15,7 @@ namespace tcp_ros_bridge
 
 //////////////////////////////////
 uuv_tcp_ros_bridge::uuv_tcp_ros_bridge(const std::string& auv_name, 
-                               boost::asio::io_service& io_service, int port) : auv_name_(auv_name)
+                               boost::asio::io_service& io_service, int port) : auv_name_(auv_name), io_service_(io_service), port_(port)
 {
     // initialize ROS components
     ros::NodeHandle nh;
@@ -39,28 +39,40 @@ uuv_tcp_ros_bridge::uuv_tcp_ros_bridge(const std::string& auv_name,
     seq_ = 0;
 
     stopped_ = false;
-    
-    try
-    {
-        tcp_msg_sub_ = boost::shared_ptr<uuv_ctrl_subscriber>(new uuv_ctrl_subscriber());
-        tcp::endpoint listen_endpoint(tcp::v4(), port);
 
-        server_ = boost::shared_ptr<async_tcp_server>(new async_tcp_server(io_service, listen_endpoint, tcp_msg_sub_));
-    }
-    catch(std::exception& e)
-    {
-        std::cerr << "[uuv_tcp_ros_bridge]: Error in server creating" << std::endl;
-        exit(1);
-    }
+    tcp_msg_sub_ = nullptr;
+    server_ = nullptr;
+
+    // try
+    // {
+    //     tcp_msg_sub_ = boost::shared_ptr<uuv_ctrl_subscriber>(new uuv_ctrl_subscriber());
+    //     tcp::endpoint listen_endpoint(tcp::v4(), port);
+    // 
+    //     server_ = boost::shared_ptr<async_tcp_server>(new async_tcp_server(io_service, listen_endpoint, tcp_msg_sub_));
+    // }
+    // catch(std::exception& e)
+    // {
+    //     std::cerr << "[uuv_tcp_ros_bridge]: Error in server creating" << std::endl;
+    //     exit(1);
+    // }
 
     parse_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::uuv_ctrl_publish_thread, this));
     send_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::uuv_status_send_thread, this));
     server_manage_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::server_manage_thread, this));
+    server_check_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::server_check_thread, this));
 }
 
 //////////////////////////////////
 uuv_tcp_ros_bridge::~uuv_tcp_ros_bridge()
 {
+    if(server_check_th_ != nullptr)
+    {
+        server_check_th_->interrupt();
+        server_check_th_->join();
+        delete server_check_th_;
+        server_check_th_ = nullptr;
+    }
+
     if(server_manage_th_ != nullptr)
     {
         server_manage_th_->interrupt();
@@ -210,11 +222,49 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
             msg[i] = static_cast<uint8_t>(send_buffer[i]);
         }
 
-        server_->addSentMsg(msg);
+        if(server_)
+        {
+            server_->addSentMsg(msg);
+        }
 
         boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 1000));
     }
-    stopped_ = true;
+}
+
+/////////////////////////////////////
+void uuv_tcp_ros_bridge::server_manage_thread()
+{
+    try
+    {
+        tcp_msg_sub_ = boost::shared_ptr<uuv_ctrl_subscriber>(new uuv_ctrl_subscriber());
+        tcp::endpoint listen_endpoint(tcp::v4(), port_);
+    
+        server_ = boost::shared_ptr<async_tcp_server>(new async_tcp_server(io_service_, listen_endpoint, tcp_msg_sub_));
+    }
+    catch(std::exception& e)
+    {
+        std::cerr << "[uuv_tcp_ros_bridge]: Error in server creating" << std::endl;
+        return;
+    }
+    
+    io_service_.run();
+
+    // while(!stopped_)
+    // {
+    //     boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 2 * 1000));
+    // }
+}
+
+
+/////////////////////////////////////
+void uuv_tcp_ros_bridge::server_check_thread()
+{
+    ros::NodeHandle nh;
+    while(nh.ok())
+    {
+    }
+    if(server_)
+        server_->stop_server();
 }
 
 /////////////////////////////////////
@@ -247,6 +297,8 @@ void uuv_tcp_ros_bridge::posegtCb(const nav_msgs::Odometry::ConstPtr& msg) // Fo
     status_info_.x_ = msg->pose.pose.position.x;
     status_info_.y_ = msg->pose.pose.position.y;
     status_info_.z_ = msg->pose.pose.position.z;
+    // std::cout << "[tcp_ros_bridge]: pose_gt cb: " << status_info_.x_ << " " 
+    //     << status_info_.y_ << " " << status_info_.z_ << std::endl;
 }
 
 /////////////////////////////////////

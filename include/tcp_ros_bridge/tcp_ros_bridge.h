@@ -52,21 +52,20 @@ private:
     /**
      * @param server manage thread
      */
-    void server_manage_thread()
-    {
-        while(!stopped_)
-        {
-            boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 2 * 1000));
-        }
-        server_->stop_server();
-    }
+    void server_manage_thread();
+
+    /**
+     * @param server check thread
+     */
+    void server_check_thread();
 
     /**
      * @param get control information from subscriber
      */
     void getCtrlInfo()
     {
-        ctrl_info_ = tcp_msg_sub_->getCtrlInfo();
+        if(tcp_msg_sub_)
+            ctrl_info_ = tcp_msg_sub_->getCtrlInfo();
     }
 
     /* Sensors callback func */
@@ -221,6 +220,7 @@ private:
     double period_;
 
     bool stopped_;
+    int port_; boost::asio::io_service& io_service_;
 
     uuv_ctrl_sub_ptr tcp_msg_sub_;
     server_ptr server_;
@@ -228,6 +228,7 @@ private:
     boost::thread* parse_th_;
     boost::thread* send_th_;
     boost::thread* server_manage_th_;
+    boost::thread* server_check_th_;
 
     boost::recursive_mutex uuv_ctrl_info_mutex_;
     uuv_ctrl_info ctrl_info_;
