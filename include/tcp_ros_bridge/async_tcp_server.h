@@ -223,6 +223,8 @@ public:
     : io_service_(io_service),
       acceptor_(io_service, listen_endpoint)
   {
+    acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+
     std::cout << "[async_tcp_server]: Server initialize" << std::endl;
     channel_.join(bc);
 
