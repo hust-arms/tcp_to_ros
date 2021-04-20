@@ -1,5 +1,4 @@
-/*                                                                                                                                                                                                    
- * Filename: async_async_tcp_server.h
+/*                                                                                 * Filename: async_async_tcp_server.h
  * Path: tcp_to_ros
  * Created Date: Saturday, Faburary 27th 2021, 15:14:39         
  * Author: zhao wang
@@ -15,6 +14,7 @@
 #include <set>
 
 #include <boost/bind.hpp>
+#include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/asio.hpp>
@@ -81,7 +81,9 @@ class tcp_session
 public:
   tcp_session(boost::asio::io_service& io_service, channel& ch)
     : channel_(ch),
-      socket_(io_service)
+      socket_(io_service), 
+      read_timer_(io_service),
+      write_timer_(io_service)
   {
   }
 
@@ -90,28 +92,11 @@ public:
     return socket_;
   }
 
-  // Called by the server object to initiate the four actors.
-  // void start()
-  // {
-  //   channel_.join(shared_from_this());
-  // 
-  //   start_read();
-  // 
-  //   input_deadline_.async_wait(
-  //       boost::bind(&tcp_session::check_deadline,
-  //       shared_from_this(), &input_deadline_));
-  // 
-  //   await_output();
-  // 
-  //   output_deadline_.async_wait(
-  //       boost::bind(&tcp_session::check_deadline,
-  //       shared_from_this(), &output_deadline_));
-  // }
-
   void start()
   {
     channel_.join(shared_from_this());
 
+    start_write();
     start_read();
   }
 
@@ -137,8 +122,6 @@ private:
   void addSentMsg(const std::string& msg)
   {
     output_queue_.push_back(msg);
-    std::cout << "[async_tcp_server]: outside deliver: " << msg << 
-                 "output queue size: " << output_queue_.size() << std::endl;
   }
 
   void start_read()
@@ -156,23 +139,10 @@ private:
 
     if (!ec)
     {
-      // Extract the newline-delimited message from the buffer.
-      // std::string msg(bytes_transferred, 0);
-      // for(size_t i = 0; i < bytes_transferred; ++i)
-      // {
-      //     msg[i] = static_cast<char>(buffer_[i]);
-      // }
-      // channel_.deliver(msg);
       channel_.deliver(buffer_, bytes_transferred);
 
-      // We received a heartbeat message from the client. If there's nothing
-      // else being sent or ready to be sent, send a heartbeat right back.
-      if (output_queue_.empty())
-      {
-        output_queue_.push_back("\n");
-      }
-
-      start_write();
+      read_timer_.expires_from_now(boost::posix_time::millisec(200));
+      start_read();
     }
     else
     {
@@ -195,9 +165,10 @@ private:
 
     if (!ec)
     {
-      std::cout << "[async_tcp_server]: write: " << output_queue_.front() << std::endl;
       output_queue_.pop_front();
-      start_read();
+   
+      write_timer_.expires_from_now(boost::posix_time::millisec(200));
+      start_write();
     }
     else
     {
@@ -209,7 +180,11 @@ private:
   tcp::socket socket_;
   
   std::deque<std::string> output_queue_;
+
   uint8_t buffer_[BUFFER_MAX_LEN];
+
+  deadline_timer read_timer_;
+  deadline_timer write_timer_;
 };
 
 typedef boost::shared_ptr<tcp_session> tcp_session_ptr;
@@ -256,7 +231,6 @@ public:
 
   void addSentMsg(const std::string& msg)
   {
-    std::cout << "[async_tcp_server]: add message: " << msg << std::endl;
     // session_->deliver(msg);
     session_->addSentMsg(msg);
   }
@@ -295,6 +269,11 @@ public:
         std::cerr << "[async_tcp_server]: error in handle acceptance" << std::endl;
         session->stop();
     }
+  }
+
+  void stop_server()
+  {
+      session_->stop();
   }
 
 private:
