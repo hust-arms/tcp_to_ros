@@ -37,6 +37,8 @@ uuv_tcp_ros_bridge::uuv_tcp_ros_bridge(const std::string& auv_name,
 
     // try create async server
     seq_ = 0;
+
+    stopped_ = false;
     
     try
     {
@@ -52,11 +54,29 @@ uuv_tcp_ros_bridge::uuv_tcp_ros_bridge(const std::string& auv_name,
     }
 
     parse_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::uuv_ctrl_publish_thread, this));
+    send_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::uuv_status_send_thread, this));
+    server_manage_th_ = new boost::thread(boost::bind(&uuv_tcp_ros_bridge::server_manage_thread, this));
 }
 
 //////////////////////////////////
 uuv_tcp_ros_bridge::~uuv_tcp_ros_bridge()
 {
+    if(server_manage_th_ != nullptr)
+    {
+        server_manage_th_->interrupt();
+        server_manage_th_->join();
+        delete server_manage_th_;
+        server_manage_th_ = nullptr;
+    }
+
+    if(send_th_ != nullptr)
+    {
+        send_th_->interrupt();
+        send_th_->join();
+        delete send_th_;
+        send_th_ = nullptr;
+    }
+
     if(parse_th_ != nullptr)
     {
         parse_th_->interrupt();
@@ -119,6 +139,8 @@ void uuv_tcp_ros_bridge::uuv_ctrl_publish_thread()
 
         boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 1000));
     }
+
+    stopped_ = true;
 }
 
 //////////////////////////////////
@@ -154,6 +176,11 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
             rpm = status_info_.rpm_;
         }
 
+        std::cout << "[tcp_ros_bridge]: status: x: " << x << " y: " << y << " z: " << z << " u: "
+            << u << " v: " << v << " w: " << w << " roll: " << roll << " pitch: " << pitch << " yaw: " << yaw << " droll: "
+            << droll << " dpitch: " << dpitch << " dyaw: " << dyaw << " fin0: " << fin0 << " fin1: " << fin1 << " fin2: "
+            << fin2 << " fin3: " << fin3 << " rpm: " << rpm << std::endl;
+
         ins_yaw = -yaw;
 
         // [-pi, pi] -> [0, 2*pi]
@@ -175,18 +202,19 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
                             light, elevator);
 
         uint8_t send_buffer[512];
-        message_msg_to_send_buffer(send_buffer, 0);
+        uint16_t len = message_msg_to_send_buffer(send_buffer, 0);
 
-        std::string send_msg(512, 0);
-        for(int i = 0; i < send_msg.length(); ++i)
+        std::string msg(len, 0);
+        for(size_t i = 0; i < len; ++i)
         {
-            send_msg[i] = static_cast<char>(send_buffer[i]);
+            msg[i] = static_cast<uint8_t>(send_buffer[i]);
         }
-        
-        server_->addSentMsg(send_msg);
+
+        server_->addSentMsg(msg);
 
         boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 1000));
     }
+    stopped_ = true;
 }
 
 /////////////////////////////////////
