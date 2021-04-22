@@ -87,6 +87,7 @@ public:
     : channel_(ch),
       socket_(io_service)
   {
+      w_len_ = 0;
   }
 
   tcp::socket& socket()
@@ -108,7 +109,11 @@ private:
     channel_.leave(shared_from_this());
 
     socket_.close();
+
+#ifdef DEBUG
     std::cout << "[async_tcp_server]: close server" << std::endl;
+#endif
+  
   }
 
   bool stopped() const
@@ -121,9 +126,18 @@ private:
 
   }
 
-  void addSentMsg(const std::string& msg)
+  // void addSentMsg(const std::string& msg)
+  // {
+  //     output_queue_.push_back(msg);
+  // }
+  void addSentMsg(uint8_t* msg, size_t len)
   {
-      output_queue_.push_back(msg);
+      boost::unique_lock<boost::recursive_mutex> lock(w_buffer_mutex_);
+      w_len_ = len;
+      for(int i = 0; i < len; ++i)
+      {
+          w_buffer_[i] = *msg++;
+      }
   }
 
   void read_thread()
@@ -138,7 +152,9 @@ private:
 
   void start_read()
   {
+#ifdef DEBUG
       std::cout << "[async_tcp_server]: start read" << std::endl;
+#endif
       socket_.async_read_some(boost::asio::buffer(buffer_, BUFFER_MAX_LEN),
           boost::bind(&tcp_session::handle_read, this,
             boost::asio::placeholders::error,
@@ -155,7 +171,7 @@ private:
       // std::cout << "[async_tcp_server]: read from port" << std::endl;
       channel_.deliver(buffer_, bytes_transferred);
 
-      boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
+      boost::this_thread::sleep(boost::posix_time::milliseconds(300));
       start_read();
     }
     else
@@ -166,14 +182,22 @@ private:
 
   void start_write()
   {
+#ifdef DEBUG
       std::cout << "[async_tcp_server]: start write" << std::endl;
-      if(output_queue_.empty())
-      {
-          output_queue_.push_back("\n"); // add heart beat msg
-      }
+#endif
+      // if(output_queue_.empty())
+      // {
+      //     output_queue_.push_back("\n"); // add heart beat msg
+      // }
+      //
+      
+      boost::unique_lock<boost::recursive_mutex> lock(w_buffer_mutex_);
        
+      // boost::asio::async_write(socket_,
+      //     boost::asio::buffer(output_queue_.front()),
+      //     boost::bind(&tcp_session::handle_write, shared_from_this(), _1));
       boost::asio::async_write(socket_,
-          boost::asio::buffer(output_queue_.front()),
+          boost::asio::buffer(w_buffer_, w_len_),
           boost::bind(&tcp_session::handle_write, shared_from_this(), _1));
   }
 
@@ -184,12 +208,12 @@ private:
 
     if (!ec)
     {
-      if(!output_queue_.empty())
+      if(output_queue_.size() > 1)
       {
         output_queue_.pop_front();
       }
 
-      boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
+      boost::this_thread::sleep(boost::posix_time::milliseconds(300));
       start_write();
     }
     else
@@ -203,7 +227,10 @@ private:
   
   std::deque<std::string> output_queue_;
 
+  boost::recursive_mutex w_buffer_mutex_;
   uint8_t buffer_[BUFFER_MAX_LEN];
+  uint8_t w_buffer_[BUFFER_MAX_LEN];
+  size_t w_len_;
 
   boost::thread* read_th_;
   boost::thread* write_th_;
@@ -247,20 +274,29 @@ public:
   {
     acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
 
+#ifdef DEBUG
     std::cout << "[async_tcp_server]: Server initialize" << std::endl;
+#endif
     channel_.join(bc);
 
     start_accept();
   }
 
-  void addSentMsg(const std::string& msg)
+  // void addSentMsg(const std::string& msg)
+  // {
+  //   session_->addSentMsg(msg);
+  // }
+
+  void addSentMsg(uint8_t* buffer, size_t len)
   {
-    session_->addSentMsg(msg);
+      session_->addSentMsg(buffer, len);
   }
 
   void start_accept()
   {
+#ifdef DEBUG
     std::cout << "[async_tcp_server]: listen" << std::endl;
+#endif
     // tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
     session_ = boost::shared_ptr<tcp_session>(new tcp_session(io_service_, channel_));
 

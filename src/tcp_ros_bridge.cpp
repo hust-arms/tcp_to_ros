@@ -190,10 +190,10 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
             rpm = status_info_.rpm_;
         }
 
-        // std::cout << "[tcp_ros_bridge]: status: x: " << x << " y: " << y << " z: " << z << " u: "
-        //     << u << " v: " << v << " w: " << w << " roll: " << roll << " pitch: " << pitch << " yaw: " << yaw << " droll: "
-        //     << droll << " dpitch: " << dpitch << " dyaw: " << dyaw << " fin0: " << fin0 << " fin1: " << fin1 << " fin2: "
-        //     << fin2 << " fin3: " << fin3 << " rpm: " << rpm << std::endl;
+        std::cout << "[tcp_ros_bridge]: status: x: " << x << " y: " << y << " z: " << z << " u: "
+            << u << " v: " << v << " w: " << w << " roll: " << roll << " pitch: " << pitch << " yaw: " << yaw << " droll: "
+            << droll << " dpitch: " << dpitch << " dyaw: " << dyaw << " fin0: " << fin0 << " fin1: " << fin1 << " fin2: "
+            << fin2 << " fin3: " << fin3 << " rpm: " << rpm << std::endl;
 
         ins_yaw = -yaw;
 
@@ -218,18 +218,19 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
         uint8_t send_buffer[512];
         uint16_t len = message_msg_to_send_buffer(send_buffer, 0);
 
-        std::string msg(len, 0);
-        for(size_t i = 0; i < len; ++i)
-        {
-            msg[i] = static_cast<uint8_t>(send_buffer[i]);
-        }
+        // std::string msg(len, 0);
+        // for(size_t i = 0; i < len; ++i)
+        // {
+        //     msg[i] = static_cast<uint8_t>(send_buffer[i]);
+        // }
 
         if(server_)
         {
-            server_->addSentMsg(msg);
+            // server_->addSentMsg(msg);
+            server_->addSentMsg(send_buffer, static_cast<size_t>(len));
         }
 
-        boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 1000));
+        boost::this_thread::sleep(boost::posix_time::milliseconds(2 * period_ * 1000));
     }
 }
 
