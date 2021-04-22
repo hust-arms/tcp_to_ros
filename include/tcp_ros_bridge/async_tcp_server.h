@@ -13,6 +13,10 @@
 #include <iostream>
 #include <set>
 
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+
 #include <boost/bind.hpp>
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
@@ -81,9 +85,7 @@ class tcp_session
 public:
   tcp_session(boost::asio::io_service& io_service, channel& ch)
     : channel_(ch),
-      socket_(io_service), 
-      read_timer_(io_service),
-      write_timer_(io_service)
+      socket_(io_service)
   {
   }
 
@@ -96,8 +98,8 @@ public:
   {
     channel_.join(shared_from_this());
 
-    start_write();
-    start_read();
+    write_th_ = new boost::thread(boost::bind(&tcp_session::write_thread, this));
+    read_th_ = new boost::thread(boost::bind(&tcp_session::read_thread, this));
   }
 
 private:
@@ -121,11 +123,22 @@ private:
 
   void addSentMsg(const std::string& msg)
   {
-    output_queue_.push_back(msg);
+      output_queue_.push_back(msg);
+  }
+
+  void read_thread()
+  {
+      start_read();
+  }
+
+  void write_thread()
+  {
+      start_write();
   }
 
   void start_read()
   {
+      std::cout << "[async_tcp_server]: start read" << std::endl;
       socket_.async_read_some(boost::asio::buffer(buffer_, BUFFER_MAX_LEN),
           boost::bind(&tcp_session::handle_read, this,
             boost::asio::placeholders::error,
@@ -139,9 +152,10 @@ private:
 
     if (!ec)
     {
+      // std::cout << "[async_tcp_server]: read from port" << std::endl;
       channel_.deliver(buffer_, bytes_transferred);
 
-      read_timer_.expires_from_now(boost::posix_time::millisec(200));
+      boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
       start_read();
     }
     else
@@ -152,10 +166,15 @@ private:
 
   void start_write()
   {
-    // Start an asynchronous operation to send a message.
-    boost::asio::async_write(socket_,
-        boost::asio::buffer(output_queue_.front()),
-        boost::bind(&tcp_session::handle_write, shared_from_this(), _1));
+      std::cout << "[async_tcp_server]: start write" << std::endl;
+      if(output_queue_.empty())
+      {
+          output_queue_.push_back("\n"); // add heart beat msg
+      }
+       
+      boost::asio::async_write(socket_,
+          boost::asio::buffer(output_queue_.front()),
+          boost::bind(&tcp_session::handle_write, shared_from_this(), _1));
   }
 
   void handle_write(const boost::system::error_code& ec)
@@ -165,9 +184,12 @@ private:
 
     if (!ec)
     {
-      output_queue_.pop_front();
-   
-      write_timer_.expires_from_now(boost::posix_time::millisec(200));
+      if(!output_queue_.empty())
+      {
+        output_queue_.pop_front();
+      }
+
+      boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
       start_write();
     }
     else
@@ -183,8 +205,8 @@ private:
 
   uint8_t buffer_[BUFFER_MAX_LEN];
 
-  deadline_timer read_timer_;
-  deadline_timer write_timer_;
+  boost::thread* read_th_;
+  boost::thread* write_th_;
 };
 
 typedef boost::shared_ptr<tcp_session> tcp_session_ptr;
@@ -233,7 +255,6 @@ public:
 
   void addSentMsg(const std::string& msg)
   {
-    // session_->deliver(msg);
     session_->addSentMsg(msg);
   }
 
@@ -242,8 +263,6 @@ public:
     std::cout << "[async_tcp_server]: listen" << std::endl;
     // tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
     session_ = boost::shared_ptr<tcp_session>(new tcp_session(io_service_, channel_));
-
-    // new_session->deliver(w_msg_);
 
     acceptor_.async_accept(session_->socket(),
         boost::bind(&async_tcp_server::handle_accept, this, session_, 
@@ -255,21 +274,14 @@ public:
   {
     if (!ec)
     {
+      std::cout << "[async_tcp_server]: start tcp session" << std::endl;
       session->start();
 
       start_accept();
-
-      // tcp_session_ptr new_session(new tcp_session(io_service_, channel_));
-      // new_session->deliver(w_msg_);
-
-      
-      // acceptor_.async_accept(new_session->socket(),
-      //     boost::bind(&async_tcp_server::handle_accept, this, new_session, _1));
     }
     else
     {
         std::cerr << "[async_tcp_server]: error in handle acceptance" << std::endl;
-        session->stop();
     }
   }
 
@@ -284,8 +296,6 @@ private:
   channel channel_;
   
   tcp_session_ptr session_;
-
-  // std::string w_msg_;
 };
 
 //----------------------------------------------------------------------
