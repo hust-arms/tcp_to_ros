@@ -185,28 +185,33 @@ private:
 #ifdef DEBUG_
             std::cout << "[tcp_ros_bridge]: head of messsage: " << std::hex << *msg << std::endl;
 #endif
-            // parse
-            if(MESSAGE_FRAMING_OK == message_parse(*msg))
+            for(int i = 0; i < bytes; ++i)
             {
-                uint8_t mode, status_fd, vel, light, elevator;
-                float course, depth;
-
-                // get control parameters from command
-                message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
-                                        &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_, &light, &elevator);
+               // parse
+               if(MESSAGE_FRAMING_OK == message_parse(*msg++))
+               {
+                   uint8_t mode, status_fd, vel, light, elevator;
+                   float course, depth;
+                   
+                   // get control parameters from command
+                   message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
+                                           &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_, &light, &elevator);
 
 #ifdef DEBUG_
-               std::cout << "[tcp_ros_bridge]: recv fin: " << ctrl_info_.fin0_ << " "
-                   << ctrl_info_.fin1_ << " "
-                   << ctrl_info_.fin2_ << " "
-                   << ctrl_info_.fin3_ << " " << std::endl;;
-#endif
+                   std::cout << "[tcp_ros_bridge]: recv fin: " << ctrl_info_.fin0_ << " "
+                       << ctrl_info_.fin1_ << " "
+                       << ctrl_info_.fin2_ << " "
+                       << ctrl_info_.fin3_ << " " << std::endl;;
 
-               ctrl_info_.rpm_ = static_cast<int>(mode) * 0.01 * 2300.0;
+                   std::cout << "[tcp_ros_bridge]: thruster: " << vel << std::endl;
+#endif
+               
+                   ctrl_info_.rpm_ = static_cast<int>(vel) * 0.01 * 2300.0;
+               }
+               // else{
+               //    std::cout << "[tcp_ros_bridge]: parse message failed!" << std::endl;
+               // }
            }
-            else{
-               std::cout << "[tcp_ros_bridge]: parse message failed!" << std::endl;
-            }
         }
 
     private:

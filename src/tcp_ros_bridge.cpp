@@ -17,6 +17,8 @@ namespace tcp_ros_bridge
 uuv_tcp_ros_bridge::uuv_tcp_ros_bridge(const std::string& auv_name, 
                                boost::asio::io_service& io_service, int port) : auv_name_(auv_name), io_service_(io_service), port_(port)
 {
+    message_init();
+
     // initialize ROS components
     ros::NodeHandle nh;
     ros::NodeHandle private_nh("~");
@@ -188,10 +190,10 @@ void uuv_tcp_ros_bridge::uuv_status_send_thread()
             rpm = status_info_.rpm_;
         }
 
-        std::cout << "[tcp_ros_bridge]: status: x: " << x << " y: " << y << " z: " << z << " u: "
-            << u << " v: " << v << " w: " << w << " roll: " << roll << " pitch: " << pitch << " yaw: " << yaw << " droll: "
-            << droll << " dpitch: " << dpitch << " dyaw: " << dyaw << " fin0: " << fin0 << " fin1: " << fin1 << " fin2: "
-            << fin2 << " fin3: " << fin3 << " rpm: " << rpm << std::endl;
+        // std::cout << "[tcp_ros_bridge]: status: x: " << x << " y: " << y << " z: " << z << " u: "
+        //     << u << " v: " << v << " w: " << w << " roll: " << roll << " pitch: " << pitch << " yaw: " << yaw << " droll: "
+        //     << droll << " dpitch: " << dpitch << " dyaw: " << dyaw << " fin0: " << fin0 << " fin1: " << fin1 << " fin2: "
+        //     << fin2 << " fin3: " << fin3 << " rpm: " << rpm << std::endl;
 
         ins_yaw = -yaw;
 
