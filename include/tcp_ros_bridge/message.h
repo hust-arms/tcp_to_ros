@@ -283,7 +283,7 @@ uint16_t message_msg_to_send_buffer(uint8_t *buffer, uint16_t index)
 
     uint8_t *foot = buffer + (MESSAGE_NUM_HEADER_BYTES + MESSAGE_NUM_CHECKSUM_BYTES + (uint16_t)txmsg.len);
     foot[0] = 0xEE;
-    foot[1] = 0x2A;
+    foot[1] = 0x1A;
 
     return MESSAGE_NUM_NON_PAYLOAD_BYTES + MESSAGE_NUM_FOOTER_BYTES + (uint16_t)txmsg.len;
 }
