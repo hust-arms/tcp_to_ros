@@ -37,10 +37,6 @@
 #define _MSG_PAYLOAD_NON_CONST(msg) ((unsigned char *)(&((msg).payload64[0])))
 #define _MSG_PAYLOAD_NON_CONST1(msg) ((unsigned char *)(&((msg)->payload64[0])))
 
-message_status_t status;
-message_message_t rxmsg;
-message_message_t txmsg;
-
 typedef enum
 {
     MESSAGE_PARSE_STATE_UNINIT = 0,
@@ -85,6 +81,38 @@ typedef struct __message_message
     uint64_t payload64[(MESSAGE_MAX_PAYLOAD_LEN + MESSAGE_NUM_CHECKSUM_BYTES + 7) / 8];
 } message_message_t;
 
+message_status_t status;
+message_message_t rxmsg;
+message_message_t txmsg;
+
+/**
+ * @brief 接收校验初始化
+ */
+void message_start_checksum()
+{
+    rxmsg.checksum = 0;
+}
+
+/**
+ * @brief 更新接收校验
+ */
+void message_update_checksum(uint8_t c)
+{
+    rxmsg.checksum += c;
+}
+
+/**
+ * @brief 计算发送校验
+ */
+void message_cal_checksum(message_message_t *_msg)
+{
+    _msg->checksum = 0;
+    for (int i = 0; i < _msg->len; i++)
+    {
+        _msg->checksum += _MSG_PAYLOAD_NON_CONST1(_msg)[i];
+    }
+}
+
 /*初始化函数，对两个结构体内部成员变量进行初始化*/
 /**
  * @brief 消息结构体初始化
@@ -113,7 +141,7 @@ void message_init()
  * @param c 待解析的字节
  * @return 解析结果（0-还没解析成完成的消息结构，1-解析出完整的消息结构，2-解析出完整的消息结构但校验错误）
  */
-uint8_t message_parse(uint8_t)
+uint8_t message_parse(uint8_t c)
 {
     status.msg_received = MESSAGE_FRAMING_INCOMPLETE;
 #ifdef MDebug
@@ -276,34 +304,6 @@ uint16_t message_msg_to_send_buffer(uint8_t *buffer, uint16_t index)
     foot[1] = MESSAGE_TXFOOTER2;
 
     return MESSAGE_NUM_NON_PAYLOAD_BYTES + MESSAGE_NUM_FOOTER_BYTES + (uint16_t)txmsg.len;
-}
-
-/**
- * @brief 接收校验初始化
- */
-void message_start_checksum()
-{
-    rxmsg.checksum = 0;
-}
-
-/**
- * @brief 更新接收校验
- */
-void message_update_checksum(uint8_t c)
-{
-    rxmsg.checksum += c;
-}
-
-/**
- * @brief 计算发送校验
- */
-void message_cal_checksum(message_message_t *_msg)
-{
-    _msg->checksum = 0;
-    for (int i = 0; i < _msg->len; i++)
-    {
-        _msg->checksum += _MSG_PAYLOAD_NON_CONST1(_msg)[i];
-    }
 }
 
 void message_status_pack(uint8_t mode, float binocularX, float binocularY, float binocularZ,float binocularHeel,float binocularPitch,float binocularYaw,float usblX,float usblY,float usblZ,float usblHeel,float usblPitch,float usblYaw, double usblLng, double usblLat,
