@@ -311,15 +311,17 @@ private:
                if(MESSAGE_FRAMING_OK == message_parse(*msg++))
                {
                    uint8_t mode, status_fd, vel, light, elevator;
+                   int8_t propeller;
                    float course, depth;
-                   uint16_t propeller1, propeller2, propeller3, propeller4; // latest
-                   uint16_t sensor_switch, load_reject, release_ins; // latest
+                   int16_t propeller1, propeller2, propeller3, propeller4; // latest
+                   uint16_t sensor_switch; // latest
+                   uint8_t load_reject, release_ins; // latest
                    
                    // get control parameters from command
 #ifdef LATEST_MSG
-                   message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth,
+                   message_get_control_cmd(&mode, &status_fd, &propeller, &course, &depth,
                                            &propeller1, &propeller2, &propeller3, &propeller4, 
-                                           &light, &elevator, &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3,
+                                           &light, &elevator, &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_,
                                            &sensor_switch, &load_reject, &release_ins);
 #else
                    message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
@@ -335,8 +337,11 @@ private:
                        << ctrl_info_.fin1_ << " "
                        << ctrl_info_.fin2_ << " "
                        << ctrl_info_.fin3_ << " " << std::endl;;
-    
+#ifdef LATEST_MSG
+                   std::cout << "[tcp_ros_bridge]: thruster: " << propeller << std::endl;
+#else
                    std::cout << "[tcp_ros_bridge]: thruster: " << vel << std::endl;
+#endif
                
                    ctrl_info_.rpm_ = static_cast<int>(vel) * 0.01 * 2300.0;
                }
