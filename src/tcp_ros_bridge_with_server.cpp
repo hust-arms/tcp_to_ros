@@ -39,7 +39,6 @@ tcp_ros_bridge::tcp_ros_bridge(const std::string& auv_name,
     posegt_sub_ = nh.subscribe<nav_msgs::Odometry>(auv_name + "/pose_gt", 1, boost::bind(&tcp_ros_bridge::posegtCb, this, _1));
     dvl_sub_ = nh.subscribe<uuv_sensor_ros_plugins_msgs::DVL>(auv_name + "/dvl", 1, boost::bind(&tcp_ros_bridge::dvlCb, this, _1));
 
-
     // try create async server
     seq_ = 0;
 
@@ -107,10 +106,10 @@ void tcp_ros_bridge::uuv_ctrl_publish_thread()
 
         ctrl_info_ = tcp_msg_sub_->getCtrlInfo();
         
-        fins0 = ctrl_info_.fin0_ / 57.3;
-        fins1 = ctrl_info_.fin1_ / 57.3;
-        fins2 = ctrl_info_.fin2_ / 57.3;
-        fins3 = ctrl_info_.fin3_ / 57.3;
+        fins0 = ctrl_info_.fin0_;
+        fins1 = ctrl_info_.fin1_;
+        fins2 = ctrl_info_.fin2_;
+        fins3 = ctrl_info_.fin3_;
 
         rpm = ctrl_info_.rpm_;
         
@@ -131,16 +130,16 @@ void tcp_ros_bridge::uuv_ctrl_publish_thread()
         uuv_gazebo_ros_plugins_msgs::FloatStamped fins_msg;
         fins_msg.header = header;
         // upper port
-        fins_msg.data = fins0;
+        fins_msg.data = -fins0;
         fins0_pub_.publish(fins_msg);
         // upper starboard
-        fins_msg.data = fins1;
+        fins_msg.data = -fins1;
         fins1_pub_.publish(fins_msg);
         // lower port
-        fins_msg.data = fins2;
+        fins_msg.data = -fins2;
         fins2_pub_.publish(fins_msg);
         // lower starboard
-        fins_msg.data = fins3;
+        fins_msg.data = -fins3;
         fins3_pub_.publish(fins_msg);
 
         boost::this_thread::sleep(boost::posix_time::milliseconds(period_ * 1000));
@@ -197,15 +196,42 @@ void tcp_ros_bridge::uuv_status_send_thread()
         uint8_t mode = 0xFF; uint8_t light = 0xFF; uint8_t elevator = 0xFF; // default
         uint8_t cmd = 0xFF;
 
-        double lng = 114.31; double lat = 30.52;
+        double ins_lng = 114.31; double ins_lat = 30.52;
 
-        message_status_pack(mode, 20.0, -5.0, -10.0, 0.0, 0.0, 0.0, 
+        double battery_volt = 12.0; // unit: V
+        uint8_t battery_volumn = 0x32; // 50%  
+        double battry_temp = 30.0; // degree
+
+        uint32_t leak = 0x00000001; 
+        uint8_t battery_emerg = 0x01; 
+        uint8_t added_battery_emerg = 0x01;
+        uint8_t propeller_emerg = 0x01;
+        uint8_t node_emerg = 0x01;
+        uint8_t estar_fd = 0xFF;
+        uint8_t load_reject_fd = 0xFF;
+        uint8_t sensor_switch_fd = 0x00;
+        uint8_t release_fd = 0xFF;
+
+#ifdef LATEST_MSG
+        message_status_pack(mode, 5.0, 0.0, -5.0, 0.0, 0.0, 0.0,  // mode, binocular_x, binocular_y, binocular_z, binocular_heel, binocular_pitch, binocular_yaw
+                            x, y, z, roll, pitch, yaw, // usbl_x, usbl_y, usbl_z, usbl_roll, usbl_pitch, usbl_yaw
+                            113.0, 30.0, // usbl_lat, usbl_lng
+                            500.0 - abs(z), abs(z), // height, depth
+                            ins_yaw, -pitch, roll, -v, u, -w, ins_lng, ins_lat, 0.0, 0.0, 0.0, // yaw, pitch, roll, vel_north, vel_east, vel_vert, ins_lng, ins_lat
+                            fin0, fin1, fin2, fin3, cmd, // rudder1, rudder2, rudder3, rudder4, command
+                            light, elevator, 0.0, 0.0, 0.0, // light, elevator, ins_accz, ins_accx, ins_accy
+                            battery_volt, battery_volumn, battry_temp, leak, battery_emerg, // battery_voltage, battery_volumn, battery_temperature, leakage, battery_emergency 
+                            added_battery_emerg, propeller_emerg, node_emerg, estar_fd, load_reject_fd, sensor_switch_fd, release_fd); // added_battery_emergency, propeller_emergency, node_emergency, 
+                                                                                                                                       // estar_feedback, load_rejection feedback, sensor switch feedback, release feedback
+#else
+        message_status_pack(mode, 5.0, 0.0, -5.0, 0.0, 0.0, 0.0, 
                             x, y, z, roll, pitch, yaw, 
                             500.0 - abs(z), abs(z), 
-                            ins_yaw, -pitch, roll, -v, u, -w,
-                            lng, lat, 0.0, 0.0, 0.0, 
+                            ins_yaw, -pitch, roll, -v, u, -w,ins_lng, ins_lat, 
+                            0.0, 0.0, 0.0, 
                             fin0, fin1, fin2, fin3, cmd, 
                             light, elevator);
+#endif
 
         uint8_t send_buffer[512];
         uint16_t len = message_msg_to_send_buffer(send_buffer, 0);

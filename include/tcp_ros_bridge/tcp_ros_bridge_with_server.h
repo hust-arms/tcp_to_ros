@@ -9,7 +9,14 @@
 
 #pragma once
 
+#define LATEST_MSG
+
+#ifdef LATEST_MSG
+#include "message_latest.hpp"
+#else
 #include "message.h"
+#endif
+
 
 #include <memory>
 
@@ -36,7 +43,6 @@
 #include <uuv_gazebo_ros_plugins_msgs/FloatStamped.h>
 
 using boost::asio::ip::tcp;
-
 
 #define DEBUG_
 
@@ -306,11 +312,25 @@ private:
                {
                    uint8_t mode, status_fd, vel, light, elevator;
                    float course, depth;
+                   uint16_t propeller1, propeller2, propeller3, propeller4; // latest
+                   uint16_t sensor_switch, load_reject, release_ins; // latest
                    
                    // get control parameters from command
+#ifdef LATEST_MSG
+                   message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth,
+                                           &propeller1, &propeller2, &propeller3, &propeller4, 
+                                           &light, &elevator, &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3,
+                                           &sensor_switch, &load_reject, &release_ins);
+#else
                    message_get_control_cmd(&mode, &status_fd, &vel, &course, &depth, 
                                            &ctrl_info_.fin0_, &ctrl_info_.fin1_, &ctrl_info_.fin2_, &ctrl_info_.fin3_, &light, &elevator);
+#endif
     
+                   ctrl_info_.fin0_ = ctrl_info_.fin0_ / 57.3;
+                   ctrl_info_.fin1_ = ctrl_info_.fin1_ / 57.3;
+                   ctrl_info_.fin2_ = ctrl_info_.fin2_ / 57.3;
+                   ctrl_info_.fin3_ = ctrl_info_.fin3_ / 57.3;
+
                    std::cout << "[tcp_ros_bridge]: recv fin: " << ctrl_info_.fin0_ << " "
                        << ctrl_info_.fin1_ << " "
                        << ctrl_info_.fin2_ << " "
